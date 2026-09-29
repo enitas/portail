@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Épreuve des Archontes - La Plume Céleste</title>
   
-  <!-- Polices Calligraphiques Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
@@ -86,7 +85,6 @@
       transform: translateX(-50%) scale(0.96);
     }
 
-    /* CONSOLE DE DÉBOGAGE */
     #error-console {
       display: none;
       position: absolute;
@@ -104,7 +102,6 @@
     }
   </style>
 
-  <!-- 1. GESTIONNAIRE D'ERREUR GLOBAL -->
   <script>
     function displayGlobalError(msg) {
       var errBox = document.getElementById('error-console');
@@ -133,7 +130,6 @@
     });
   </script>
 
-  <!-- 2. IMPORT MAPS CORRIGÉE AVEC THREE/ADDONS -->
   <script type="importmap">
     {
       "imports": {
@@ -155,7 +151,6 @@
   <div id="error-console"></div>
   <div id="container"></div>
 
-  <!-- 3. SCRIPT MODULE AR -->
   <script type="module">
     import * as THREE from 'three';
     import { MindARThree } from 'mindar-image-three';
@@ -164,15 +159,15 @@
     const statusDesc = document.getElementById('status-desc');
     const startBtn = document.getElementById('start-btn');
 
-    // TEXTE À ÉCRIRE EN CALLIGRAPHIE
     const TEXT_TO_WRITE = [
-      "Nul ne franchira ces portes",
-      "sans la lumiere de l'obsidienne.",
+      "Nul ne franchira ce portail",
+      "Celui qui cherche la lumière doit observer ce qui est caché à l'œil nu...",
       "",
-      "Regardez l'Orbe sous la lumiere noire :",
+      "Regardez l'Orbe sous la lumiere bleu :",
       "le passage s'ouvrira avec le code sacre."
     ];
 
+    // 1. CANVAS ET CALLIGRAPHIE
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
@@ -184,53 +179,74 @@
     const planeMat = new THREE.MeshBasicMaterial({ 
       map: textTexture, 
       transparent: true, 
-      opacity: 0.95,
+      opacity: 0.98,
       side: THREE.DoubleSide
     });
     const textMesh = new THREE.Mesh(planeGeo, planeMat);
+    textMesh.position.z = 0.02;
 
     let currentLineIndex = 0;
     let currentCharIndex = 0;
     let animationTimer = null;
+    let isWritingActive = false;
 
     function renderCanvasCalligraphy() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = '#f5e6b3';
-      ctx.shadowColor = '#d4af37';
-      ctx.shadowBlur = 12;
-      ctx.font = '48px "Great Vibes", cursive, serif';
-      ctx.textAlign = 'center';
+      ctx.font = '46px "Great Vibes", cursive, serif';
 
       let startY = 90;
       const lineHeight = 65;
 
+      // Dessiner les lignes terminées (centrées)
       for (let i = 0; i < currentLineIndex; i++) {
-        ctx.fillText(TEXT_TO_WRITE[i], canvas.width / 2, startY + (i * lineHeight));
+        const lineText = TEXT_TO_WRITE[i];
+        if (!lineText) continue;
+        
+        ctx.fillStyle = '#f5e6b3';
+        ctx.shadowColor = '#d4af37';
+        ctx.shadowBlur = 14;
+        ctx.textAlign = 'center';
+        ctx.fillText(lineText, canvas.width / 2, startY + (i * lineHeight));
       }
 
+      // Dessiner la ligne en cours d'écriture (synchro parfaite)
       if (currentLineIndex < TEXT_TO_WRITE.length) {
         const lineText = TEXT_TO_WRITE[currentLineIndex];
-        const partialText = lineText.substring(0, currentCharIndex);
         const yPos = startY + (currentLineIndex * lineHeight);
 
-        ctx.fillText(partialText, canvas.width / 2, yPos);
+        if (lineText && lineText.length > 0) {
+          const fullWidth = ctx.measureText(lineText).width;
+          const startX = (canvas.width - fullWidth) / 2;
+          const partialText = lineText.substring(0, currentCharIndex);
+          const partialWidth = ctx.measureText(partialText).width;
 
-        if (partialText.length > 0) {
-          const textMetrics = ctx.measureText(partialText);
-          const fullMetrics = ctx.measureText(lineText);
-          
-          const startX = (canvas.width - fullMetrics.width) / 2;
-          const tipX = startX + textMetrics.width;
+          // Alignement à gauche depuis le point de départ centré
+          ctx.fillStyle = '#f5e6b3';
+          ctx.shadowColor = '#d4af37';
+          ctx.shadowBlur = 14;
+          ctx.textAlign = 'left';
+          ctx.fillText(partialText, startX, yPos);
 
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(tipX, yPos - 12, 5, 0, Math.PI * 2);
-          ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = '#ffe066';
-          ctx.shadowBlur = 20;
-          ctx.fill();
-          ctx.restore();
+          // Synchronisation de la pointe lumineuse
+          if (isWritingActive && currentCharIndex > 0 && currentCharIndex <= lineText.length) {
+            const tipX = startX + partialWidth;
+
+            ctx.save();
+            // Point central hyper brillant
+            ctx.beginPath();
+            ctx.arc(tipX, yPos - 10, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffe066';
+            ctx.shadowBlur = 25;
+            ctx.fill();
+
+            // Halo étincelant autour de la pointe
+            ctx.beginPath();
+            ctx.arc(tipX, yPos - 10, 12, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(212, 175, 55, 0.25)';
+            ctx.fill();
+            ctx.restore();
+          }
         }
       }
 
@@ -240,8 +256,10 @@
     function startWritingAnimation() {
       currentLineIndex = 0;
       currentCharIndex = 0;
+      isWritingActive = true;
       clearInterval(animationTimer);
 
+      // Vitesse ralentie à 85ms par caractère
       animationTimer = setInterval(() => {
         if (currentLineIndex < TEXT_TO_WRITE.length) {
           if (currentCharIndex < TEXT_TO_WRITE[currentLineIndex].length) {
@@ -252,13 +270,64 @@
           }
           renderCanvasCalligraphy();
         } else {
+          isWritingActive = false;
           clearInterval(animationTimer);
-          renderCanvasCalligraphy();
+          renderCanvasCalligraphy(); // Retirer la pointe lumineuse à la fin
         }
-      }, 45);
+      }, 85);
     }
 
-    // LANCEMENT AU CLIC DU BOUTON
+    // 2. POUSSIÈRE D'OR 3D SEULEMENT
+    function createGoldDustEffect() {
+      const group = new THREE.Group();
+
+      // Texture de particule d'or luminescente
+      const pCanvas = document.createElement('canvas');
+      pCanvas.width = 32; pCanvas.height = 32;
+      const pCtx = pCanvas.getContext('2d');
+      const grad = pCtx.createRadialGradient(16,16,0, 16,16,16);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, '#ffd700');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      pCtx.fillStyle = grad;
+      pCtx.fillRect(0,0,32,32);
+      const pTexture = new THREE.CanvasTexture(pCanvas);
+
+      // Poussière d'or flottante dans la pièce (120 particules)
+      const particleCount = 120;
+      const particleGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const velocities = [];
+
+      for(let i = 0; i < particleCount; i++) {
+        positions[i*3] = (Math.random() - 0.5) * 1.4;
+        positions[i*3 + 1] = (Math.random() - 0.5) * 0.8;
+        positions[i*3 + 2] = Math.random() * 0.4;
+        
+        velocities.push({
+          x: (Math.random() - 0.5) * 0.001,
+          y: Math.random() * 0.0015 + 0.0005,
+          z: Math.random() * 0.001 + 0.0005
+        });
+      }
+
+      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const particleMat = new THREE.PointsMaterial({
+        size: 0.035,
+        map: pTexture,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.85
+      });
+
+      const particles = new THREE.Points(particleGeo, particleMat);
+      group.add(particles);
+
+      return { group, particles, particleCount, velocities };
+    }
+
+    // 3. DÉMARRAGE AR
     async function startAR() {
       startBtn.disabled = true;
       startBtn.style.opacity = '0.5';
@@ -276,7 +345,11 @@
         const { renderer, scene, camera } = mindarThree;
 
         const anchor = mindarThree.addAnchor(0);
+        
+        // Ajouter le texte et l'effet de poussière d'or 3D
         anchor.group.add(textMesh);
+        const fx = createGoldDustEffect();
+        anchor.group.add(fx.group);
 
         anchor.onTargetFound = () => {
           statusTitle.textContent = "RÉVÉLATION EN COURS";
@@ -289,6 +362,7 @@
           statusTitle.textContent = "RECHERCHE DU SCEAU";
           statusTitle.style.color = "#ffaa00";
           statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
+          isWritingActive = false;
           clearInterval(animationTimer);
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           textTexture.needsUpdate = true;
@@ -300,7 +374,18 @@
         statusTitle.textContent = "RECHERCHE DU SCEAU";
         statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
 
+        // Animation en boucle : Mouvement des Poussières d'or uniquement
         renderer.setAnimationLoop(() => {
+          const pos = fx.particles.geometry.attributes.position.array;
+          for(let i = 0; i < fx.particleCount; i++) {
+            pos[i*3 + 1] += fx.velocities[i].y;
+            pos[i*3 + 2] += fx.velocities[i].z;
+
+            if (pos[i*3 + 1] > 0.5) pos[i*3 + 1] = -0.5;
+            if (pos[i*3 + 2] > 0.5) pos[i*3 + 2] = 0;
+          }
+          fx.particles.geometry.attributes.position.needsUpdate = true;
+
           renderer.render(scene, camera);
         });
       } catch (err) {
