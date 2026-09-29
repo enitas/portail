@@ -104,10 +104,40 @@
     }
   </style>
 
+  <!-- 1. GESTIONNAIRE D'ERREUR GLOBAL HORS MODULE -->
+  <script>
+    function displayGlobalError(msg) {
+      var errBox = document.getElementById('error-console');
+      var statusTitle = document.getElementById('status-title');
+      var statusDesc = document.getElementById('status-desc');
+      if (errBox) {
+        errBox.style.display = 'block';
+        errBox.innerText = '❌ Erreur : ' + msg;
+      }
+      if (statusTitle) {
+        statusTitle.textContent = "ERREUR";
+        statusTitle.style.color = "#ff4444";
+      }
+      if (statusDesc) {
+        statusDesc.textContent = "Consultez le message rouge ci-dessous.";
+      }
+    }
+
+    window.onerror = function(message, source, lineno, colno, error) {
+      displayGlobalError(message + ' (' + source + ':' + lineno + ')');
+      return false;
+    };
+
+    window.addEventListener('unhandledrejection', function(event) {
+      displayGlobalError(event.reason ? (event.reason.message || event.reason) : 'Erreur réseau/module');
+    });
+  </script>
+
+  <!-- 2. IMPORT MAPS AVEC SOURCES UNIFIÉES -->
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
         "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
       }
     }
@@ -124,6 +154,7 @@
   <div id="error-console"></div>
   <div id="container"></div>
 
+  <!-- 3. SCRIPT MODULE AR -->
   <script type="module">
     import * as THREE from 'three';
     import { MindARThree } from 'mindar-image-three';
@@ -131,26 +162,13 @@
     const statusTitle = document.getElementById('status-title');
     const statusDesc = document.getElementById('status-desc');
     const startBtn = document.getElementById('start-btn');
-    const errConsole = document.getElementById('error-console');
 
-    // CONSOLE DE DÉBOGAGE SUR L'ÉCRAN
-    function showError(msg) {
-      errConsole.style.display = 'block';
-      errConsole.textContent = '❌ ' + msg;
-      statusTitle.textContent = "ERREUR";
-      statusTitle.style.color = "#ff4444";
-      statusDesc.textContent = "Détails affichés en bas de l'écran.";
-    }
-
-    window.addEventListener('error', (e) => showError(e.message));
-    window.addEventListener('unhandledrejection', (e) => showError(e.reason));
-
-    // TEXTE À ÉCRIRE EN ÉCRITURE ATTACHÉE
+    // TEXTE À ÉCRIRE EN CALLIGRAPHIE
     const TEXT_TO_WRITE = [
-      "Nul ne franchira ce portail",
-      "Celui qui cherche la lumière doit observer ce qui est caché à l'œil nu...",
+      "Nul ne franchira ces portes",
+      "sans la lumiere de l'obsidienne.",
       "",
-      "Regardez l'Orbe sous la lumiere :",
+      "Regardez l'Orbe sous la lumiere noire :",
       "le passage s'ouvrira avec le code sacre."
     ];
 
@@ -239,46 +257,47 @@
       }, 45);
     }
 
-    // INITIALISATION MINDAR
-    let mindarThree;
-    try {
-      mindarThree = new MindARThree({
-        container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind"
-      });
-    } catch (e) {
-      showError("Erreur d'initialisation MindAR : " + e.message);
-    }
-
-    const { renderer, scene, camera } = mindarThree;
-
-    const anchor = mindarThree.addAnchor(0);
-    anchor.group.add(textMesh);
-
-    anchor.onTargetFound = () => {
-      statusTitle.textContent = "RÉVÉLATION EN COURS";
-      statusTitle.style.color = "#d4af37";
-      statusDesc.textContent = "Une plume invisible trace un message...";
-      startWritingAnimation();
-    };
-
-    anchor.onTargetLost = () => {
-      statusTitle.textContent = "RECHERCHE DU SCEAU";
-      statusTitle.style.color = "#ffaa00";
-      statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
-      clearInterval(animationTimer);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      textTexture.needsUpdate = true;
-    };
-
-    // ACTION AU CLIC
+    // LANCEMENT AU CLIC DU BOUTON
     async function startAR() {
-      startBtn.style.display = 'none';
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.5';
+      startBtn.textContent = 'CHARGEMENT...';
+
       statusTitle.textContent = "ACTIVATION";
-      statusDesc.textContent = "Initialisation de la caméra...";
+      statusDesc.textContent = "Demande d'accès à la caméra...";
 
       try {
+        // Initialisation de MindAR uniquement au clic de l'utilisateur
+        const mindarThree = new MindARThree({
+          container: document.querySelector("#container"),
+          imageTargetSrc: "./targets.mind"
+        });
+
+        const { renderer, scene, camera } = mindarThree;
+
+        const anchor = mindarThree.addAnchor(0);
+        anchor.group.add(textMesh);
+
+        anchor.onTargetFound = () => {
+          statusTitle.textContent = "RÉVÉLATION EN COURS";
+          statusTitle.style.color = "#d4af37";
+          statusDesc.textContent = "Une plume invisible trace un message...";
+          startWritingAnimation();
+        };
+
+        anchor.onTargetLost = () => {
+          statusTitle.textContent = "RECHERCHE DU SCEAU";
+          statusTitle.style.color = "#ffaa00";
+          statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
+          clearInterval(animationTimer);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          textTexture.needsUpdate = true;
+        };
+
         await mindarThree.start();
+
+        // Une fois la caméra démarrée, on masque le bouton
+        startBtn.style.display = 'none';
         statusTitle.textContent = "RECHERCHE DU SCEAU";
         statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
 
@@ -286,10 +305,14 @@
           renderer.render(scene, camera);
         });
       } catch (err) {
-        showError(err.message || "Accès caméra refusé.");
+        startBtn.disabled = false;
+        startBtn.style.opacity = '1';
+        startBtn.textContent = 'INSPECTER LE MUR';
+        displayGlobalError(err.message || err);
       }
     }
 
+    // Attacher le clic
     startBtn.addEventListener('click', startAR);
   </script>
 </body>
