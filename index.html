@@ -159,8 +159,9 @@
     const statusDesc = document.getElementById('status-desc');
     const startBtn = document.getElementById('start-btn');
 
-    // 1. MOTEUR SONORE PROCÉDURAL (SANS FICHIER EXTERNE)
+    // 1. AUDIO MINÉRAL & GONG
     let audioCtx = null;
+    let isAudioActive = false;
 
     function initAudio() {
       if (!audioCtx) {
@@ -169,41 +170,46 @@
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+      isAudioActive = true;
     }
 
-    // Bruit léger de frottement/gravure de la pierre
     function playScratchSound() {
-      if (!audioCtx) return;
+      if (!isAudioActive || !audioCtx) return;
       try {
-        const bufferSize = audioCtx.sampleRate * 0.03; // 30ms
+        const duration = 0.05;
+        const bufferSize = audioCtx.sampleRate * duration;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
+
         for (let i = 0; i < bufferSize; i++) {
-          data[i] = (Math.random() * 2 - 1) * 0.5;
+          data[i] = (Math.random() * 2 - 1);
         }
 
         const noise = audioCtx.createBufferSource();
         noise.buffer = buffer;
 
         const filter = audioCtx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.value = 1600 + Math.random() * 800;
-        filter.Q.value = 4;
+        filter.type = 'lowpass';
+        filter.frequency.value = 500 + Math.random() * 300;
 
         const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+        const now = audioCtx.currentTime;
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(0.012, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
         noise.connect(filter);
         filter.connect(gain);
         gain.connect(audioCtx.destination);
-        noise.start();
+
+        noise.start(now);
+        noise.stop(now + duration);
       } catch(e) {}
     }
 
-    // Gong Céleste à la fin de la révélation
     function playGongSound() {
-      if (!audioCtx) return;
+      if (!isAudioActive || !audioCtx) return;
       try {
         const harmonics = [110, 220, 276.5, 440, 554.37, 659.25];
         const now = audioCtx.currentTime;
@@ -226,7 +232,7 @@
       } catch(e) {}
     }
 
-    // 2. TEXTE & CANVAS
+    // 2. TEXTE ET PLAN DE RECONSTITUTION
     const TEXT_TO_WRITE = [
       "Nul ne franchira ces portes",
       "sans la lumiere de l'obsidienne.",
@@ -235,6 +241,9 @@
       "le passage s'ouvrira avec le code sacre."
     ];
 
+    const PLANE_WIDTH = 1.2;
+    const PLANE_HEIGHT = 0.6;
+
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
@@ -242,7 +251,7 @@
 
     const textTexture = new THREE.CanvasTexture(canvas);
     
-    const planeGeo = new THREE.PlaneGeometry(1.2, 0.6);
+    const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
     const planeMat = new THREE.MeshBasicMaterial({ 
       map: textTexture, 
       transparent: true, 
@@ -252,80 +261,139 @@
     const textMesh = new THREE.Mesh(planeGeo, planeMat);
     textMesh.position.z = 0.02;
 
-    let currentLineIndex = 0;
-    let currentCharIndex = 0;
-    let animationTimer = null;
-    let isWritingActive = false;
+    // 3. PLUME 3D STYLISÉE (GÉOMÉTRIE TIGE + LAME DE PLUME D'OR)
+    function create3DQuillModel() {
+      const group = new THREE.Group();
 
-    // Dessin de la Plume Calligraphique Dorée
-    function drawQuillFeather(ctx, x, y) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-Math.PI / 3.8); // Inclinaison naturelle de l'écriture
+      // Tige (Calamus)
+      const shaftGeo = new THREE.CylinderGeometry(0.003, 0.001, 0.22, 16);
+      const shaftMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+      shaft.position.y = 0.11;
+      group.add(shaft);
 
-      // 1. Lueur d'énergie à la pointe
-      ctx.beginPath();
-      ctx.arc(0, 0, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#ffe066';
-      ctx.shadowBlur = 18;
-      ctx.fill();
+      // Barbes de la plume (Feuille d'or 3D)
+      const featherShape = new THREE.Shape();
+      featherShape.moveTo(0, 0);
+      featherShape.quadraticCurveTo(0.04, 0.08, 0.02, 0.18);
+      featherShape.quadraticCurveTo(0, 0.22, 0, 0.24);
+      featherShape.quadraticCurveTo(-0.02, 0.18, -0.04, 0.08);
+      featherShape.quadraticCurveTo(0, 0, 0, 0);
 
-      // 2. Tige de la plume (Calamus)
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, -85);
-      ctx.strokeStyle = '#f5e6b3';
-      ctx.lineWidth = 2.2;
-      ctx.shadowColor = '#d4af37';
-      ctx.shadowBlur = 8;
-      ctx.stroke();
+      const extrudeSettings = { depth: 0.001, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.001, bevelThickness: 0.001 };
+      const featherGeo = new THREE.ExtrudeGeometry(featherShape, extrudeSettings);
+      const featherMat = new THREE.MeshBasicMaterial({ color: 0xd4af37, side: THREE.DoubleSide });
+      const feather = new THREE.Mesh(featherGeo, featherMat);
+      feather.position.y = 0.05;
+      group.add(feather);
 
-      // 3. Corps de la plume (Barbes)
-      ctx.beginPath();
-      ctx.moveTo(0, -20);
-      ctx.quadraticCurveTo(-22, -45, -16, -75);
-      ctx.quadraticCurveTo(-6, -92, 0, -96);
-      ctx.quadraticCurveTo(6, -92, 16, -75);
-      ctx.quadraticCurveTo(22, -45, 0, -20);
+      // Pointe incandescente
+      const tipGeo = new THREE.SphereGeometry(0.006, 16, 16);
+      const tipMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.position.y = 0;
+      group.add(tip);
 
-      const grad = ctx.createLinearGradient(0, -96, 0, -20);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.35, '#ffd700');
-      grad.addColorStop(0.8, '#b38711');
-      grad.addColorStop(1, 'rgba(80, 50, 10, 0.2)');
+      // Orientation de la plume dans l'espace
+      group.rotation.z = -Math.PI / 4;
+      group.rotation.x = Math.PI / 6;
 
-      ctx.fillStyle = grad;
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 12;
-      ctx.fill();
-
-      // 4. Stries de détails sur les barbes de la plume
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.lineWidth = 0.8;
-      for (let i = -30; i >= -80; i -= 9) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(-12, i - 6);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(12, i - 6);
-        ctx.stroke();
-      }
-
-      ctx.restore();
+      return group;
     }
+
+    const quill3D = create3DQuillModel();
+    quill3D.visible = false;
+
+    // 4. SYSTÈME DE PARTICULES 3D (ÉTINGELLES DE PLUME)
+    const MAX_SPARKS = 150;
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPositions = new Float32Array(MAX_SPARKS * 3);
+    const sparkOpacities = new Float32Array(MAX_SPARKS);
+    const sparkData = [];
+
+    for (let i = 0; i < MAX_SPARKS; i++) {
+      sparkPositions[i * 3] = 0;
+      sparkPositions[i * 3 + 1] = 0;
+      sparkPositions[i * 3 + 2] = 0;
+      sparkOpacities[i] = 0;
+      sparkData.push({ vx: 0, vy: 0, vz: 0, life: 0, maxLife: 1 });
+    }
+
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+
+    // Texture d'étincelle
+    const sparkCanvas = document.createElement('canvas');
+    sparkCanvas.width = 16; sparkCanvas.height = 16;
+    const sCtx = sparkCanvas.getContext('2d');
+    const grad = sCtx.createRadialGradient(8,8,0, 8,8,8);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.4, '#ffd700');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sCtx.fillStyle = grad;
+    sCtx.fillRect(0,0,16,16);
+    const sparkTexture = new THREE.CanvasTexture(sparkCanvas);
+
+    const sparkMat = new THREE.PointsMaterial({
+      size: 0.025,
+      map: sparkTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    const sparkParticles = new THREE.Points(sparkGeo, sparkMat);
+
+    function emitSpark(x, y, z) {
+      for (let i = 0; i < MAX_SPARKS; i++) {
+        if (sparkData[i].life <= 0) {
+          sparkPositions[i * 3] = x;
+          sparkPositions[i * 3 + 1] = y;
+          sparkPositions[i * 3 + 2] = z;
+
+          sparkData[i].vx = (Math.random() - 0.5) * 0.008;
+          sparkData[i].vy = (Math.random() - 0.2) * 0.008;
+          sparkData[i].vz = Math.random() * 0.006 + 0.002;
+          sparkData[i].life = 1.0;
+          sparkData[i].maxLife = 0.3 + Math.random() * 0.4; // Durée de vie en secondes
+          break;
+        }
+      }
+    }
+
+    function updateSparks(delta) {
+      const pos = sparkGeo.attributes.position.array;
+      for (let i = 0; i < MAX_SPARKS; i++) {
+        if (sparkData[i].life > 0) {
+          sparkData[i].life -= delta / sparkData[i].maxLife;
+          
+          pos[i * 3] += sparkData[i].vx;
+          pos[i * 3 + 1] += sparkData[i].vy;
+          pos[i * 3 + 2] += sparkData[i].vz;
+
+          // Légère gravité
+          sparkData[i].vy -= 0.00015;
+
+          if (sparkData[i].life <= 0) {
+            pos[i * 3 + 2] = -999; // Cacher la particule
+          }
+        }
+      }
+      sparkGeo.attributes.position.needsUpdate = true;
+    }
+
+    // 5. ANIMATION DE CALLIGRAPHIE FLUIDE (CONTINUE)
+    let currentLineIndex = 0;
+    let lineProgress = 0; // De 0.0 à 1.0
+    let isWritingActive = false;
 
     function renderCanvasCalligraphy() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.font = '46px "Great Vibes", cursive, serif';
 
-      let startY = 90;
+      const startY = 90;
       const lineHeight = 65;
 
-      // Lignes déjà complétées
+      // Lignes précédentes déjà écrites
       for (let i = 0; i < currentLineIndex; i++) {
         const lineText = TEXT_TO_WRITE[i];
         if (!lineText) continue;
@@ -337,7 +405,7 @@
         ctx.fillText(lineText, canvas.width / 2, startY + (i * lineHeight));
       }
 
-      // Ligne en cours de tracé
+      // Ligne active en cours de tracé fluide (Masque continu)
       if (currentLineIndex < TEXT_TO_WRITE.length) {
         const lineText = TEXT_TO_WRITE[currentLineIndex];
         const yPos = startY + (currentLineIndex * lineHeight);
@@ -345,19 +413,37 @@
         if (lineText && lineText.length > 0) {
           const fullWidth = ctx.measureText(lineText).width;
           const startX = (canvas.width - fullWidth) / 2;
-          const partialText = lineText.substring(0, currentCharIndex);
-          const partialWidth = ctx.measureText(partialText).width;
+
+          ctx.save();
+          // Masque de découpe dynamique au pixel près
+          ctx.beginPath();
+          ctx.rect(startX - 10, yPos - 50, fullWidth * lineProgress + 10, 70);
+          ctx.clip();
 
           ctx.fillStyle = '#f5e6b3';
           ctx.shadowColor = '#d4af37';
           ctx.shadowBlur = 14;
           ctx.textAlign = 'left';
-          ctx.fillText(partialText, startX, yPos);
+          ctx.fillText(lineText, startX, yPos);
+          ctx.restore();
 
-          // Afficher la plume sur la pointe active
-          if (isWritingActive && currentCharIndex > 0 && currentCharIndex <= lineText.length) {
-            const tipX = startX + partialWidth;
-            drawQuillFeather(ctx, tipX, yPos - 8);
+          // Calcul des coordonnées 2D puis conversion 3D pour la plume & étincelles
+          if (isWritingActive && lineProgress > 0 && lineProgress < 1) {
+            const currentX2D = startX + (fullWidth * lineProgress);
+            const currentY2D = yPos - 8;
+
+            // Conversion coordonnées Canvas (1024x512) -> Scène 3D (1.2x0.6)
+            const targetX3D = (currentX2D / 1024 - 0.5) * PLANE_WIDTH;
+            const targetY3D = (0.5 - currentY2D / 512) * PLANE_HEIGHT;
+            const targetZ3D = 0.03;
+
+            quill3D.position.set(targetX3D, targetY3D, targetZ3D);
+
+            // Émettre des étincelles 3D à la pointe
+            emitSpark(targetX3D, targetY3D, targetZ3D);
+
+            // Jouer le son de frottement de manière fluide
+            if (Math.random() < 0.4) playScratchSound();
           }
         }
       }
@@ -365,34 +451,53 @@
       textTexture.needsUpdate = true;
     }
 
-    function startWritingAnimation() {
-      currentLineIndex = 0;
-      currentCharIndex = 0;
-      isWritingActive = true;
-      clearInterval(animationTimer);
+    let lastTime = performance.now();
 
-      animationTimer = setInterval(() => {
-        if (currentLineIndex < TEXT_TO_WRITE.length) {
-          if (currentCharIndex < TEXT_TO_WRITE[currentLineIndex].length) {
-            currentCharIndex++;
-            playScratchSound(); // Son de gravure à chaque lettre
-          } else {
-            currentLineIndex++;
-            currentCharIndex = 0;
-          }
-          renderCanvasCalligraphy();
+    function updateWritingAnimation() {
+      if (!isWritingActive) return;
+
+      const now = performance.now();
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
+
+      if (currentLineIndex < TEXT_TO_WRITE.length) {
+        const currentText = TEXT_TO_WRITE[currentLineIndex];
+
+        if (!currentText || currentText.length === 0) {
+          // Sauter les lignes vides instantanément
+          currentLineIndex++;
+          lineProgress = 0;
         } else {
-          isWritingActive = false;
-          clearInterval(animationTimer);
-          renderCanvasCalligraphy(); // Retirer la plume
-          playGongSound(); // Gong final !
+          // Vitesse fluide proportionnelle à la longueur de la phrase
+          const durationPerLine = currentText.length * 0.085; // ~85ms par caractère
+          lineProgress += delta / durationPerLine;
+
+          if (lineProgress >= 1.0) {
+            lineProgress = 0;
+            currentLineIndex++;
+          }
         }
-      }, 90);
+        renderCanvasCalligraphy();
+      } else {
+        // Fin du tracé
+        isWritingActive = false;
+        quill3D.visible = false;
+        renderCanvasCalligraphy();
+        playGongSound();
+      }
     }
 
-    // 3. DÉMARRAGE AR
+    function startWritingAnimation() {
+      currentLineIndex = 0;
+      lineProgress = 0;
+      isWritingActive = true;
+      quill3D.visible = true;
+      lastTime = performance.now();
+    }
+
+    // 6. INITIALISATION AR ET BOUCLE DE RENDU 3D
     async function startAR() {
-      initAudio(); // Activer l'audio sur le clic utilisateur
+      initAudio();
 
       startBtn.disabled = true;
       startBtn.style.opacity = '0.5';
@@ -411,6 +516,8 @@
 
         const anchor = mindarThree.addAnchor(0);
         anchor.group.add(textMesh);
+        anchor.group.add(quill3D);
+        anchor.group.add(sparkParticles);
 
         anchor.onTargetFound = () => {
           statusTitle.textContent = "RÉVÉLATION EN COURS";
@@ -424,7 +531,7 @@
           statusTitle.style.color = "#ffaa00";
           statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
           isWritingActive = false;
-          clearInterval(animationTimer);
+          quill3D.visible = false;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           textTexture.needsUpdate = true;
         };
@@ -435,7 +542,14 @@
         statusTitle.textContent = "RECHERCHE DU SCEAU";
         statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
 
+        let clock = new THREE.Clock();
+
         renderer.setAnimationLoop(() => {
+          const delta = clock.getDelta();
+
+          updateWritingAnimation();
+          updateSparks(delta);
+
           renderer.render(scene, camera);
         });
       } catch (err) {
