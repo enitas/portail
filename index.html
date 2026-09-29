@@ -104,7 +104,7 @@
     }
   </style>
 
-  <!-- 1. GESTIONNAIRE D'ERREUR GLOBAL HORS MODULE -->
+  <!-- 1. GESTIONNAIRE D'ERREUR GLOBAL -->
   <script>
     function displayGlobalError(msg) {
       var errBox = document.getElementById('error-console');
@@ -133,11 +133,12 @@
     });
   </script>
 
-  <!-- 2. IMPORT MAPS AVEC SOURCES UNIFIÉES -->
+  <!-- 2. IMPORT MAPS CORRIGÉE AVEC THREE/ADDONS -->
   <script type="importmap">
     {
       "imports": {
         "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
         "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
       }
     }
@@ -267,7 +268,6 @@
       statusDesc.textContent = "Demande d'accès à la caméra...";
 
       try {
-        // Initialisation de MindAR uniquement au clic de l'utilisateur
         const mindarThree = new MindARThree({
           container: document.querySelector("#container"),
           imageTargetSrc: "./targets.mind"
@@ -296,7 +296,6 @@
 
         await mindarThree.start();
 
-        // Une fois la caméra démarrée, on masque le bouton
         startBtn.style.display = 'none';
         statusTitle.textContent = "RECHERCHE DU SCEAU";
         statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
@@ -312,7 +311,6 @@
       }
     }
 
-    // Attacher le clic
     startBtn.addEventListener('click', startAR);
   </script>
 </body>
