@@ -159,15 +159,82 @@
     const statusDesc = document.getElementById('status-desc');
     const startBtn = document.getElementById('start-btn');
 
+    // 1. MOTEUR SONORE PROCÉDURAL (SANS FICHIER EXTERNE)
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // Bruit léger de frottement/gravure de la pierre
+    function playScratchSound() {
+      if (!audioCtx) return;
+      try {
+        const bufferSize = audioCtx.sampleRate * 0.03; // 30ms
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.5;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1600 + Math.random() * 800;
+        filter.Q.value = 4;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.025, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start();
+      } catch(e) {}
+    }
+
+    // Gong Céleste à la fin de la révélation
+    function playGongSound() {
+      if (!audioCtx) return;
+      try {
+        const harmonics = [110, 220, 276.5, 440, 554.37, 659.25];
+        const now = audioCtx.currentTime;
+
+        harmonics.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+
+          const vol = 0.12 / (i + 1);
+          gain.gain.setValueAtTime(vol, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.8);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 3.8);
+        });
+      } catch(e) {}
+    }
+
+    // 2. TEXTE & CANVAS
     const TEXT_TO_WRITE = [
-      "Nul ne franchira ce portail",
-      "Celui qui cherche la lumière doit observer ce qui est caché à l'œil nu...",
+      "Nul ne franchira ces portes",
+      "sans la lumiere de l'obsidienne.",
       "",
-      "Regardez l'Orbe sous la lumiere bleu :",
+      "Regardez l'Orbe sous la lumiere noire :",
       "le passage s'ouvrira avec le code sacre."
     ];
 
-    // 1. CANVAS ET CALLIGRAPHIE
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
@@ -190,6 +257,67 @@
     let animationTimer = null;
     let isWritingActive = false;
 
+    // Dessin de la Plume Calligraphique Dorée
+    function drawQuillFeather(ctx, x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 3.8); // Inclinaison naturelle de l'écriture
+
+      // 1. Lueur d'énergie à la pointe
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffe066';
+      ctx.shadowBlur = 18;
+      ctx.fill();
+
+      // 2. Tige de la plume (Calamus)
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -85);
+      ctx.strokeStyle = '#f5e6b3';
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = '#d4af37';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+
+      // 3. Corps de la plume (Barbes)
+      ctx.beginPath();
+      ctx.moveTo(0, -20);
+      ctx.quadraticCurveTo(-22, -45, -16, -75);
+      ctx.quadraticCurveTo(-6, -92, 0, -96);
+      ctx.quadraticCurveTo(6, -92, 16, -75);
+      ctx.quadraticCurveTo(22, -45, 0, -20);
+
+      const grad = ctx.createLinearGradient(0, -96, 0, -20);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.35, '#ffd700');
+      grad.addColorStop(0.8, '#b38711');
+      grad.addColorStop(1, 'rgba(80, 50, 10, 0.2)');
+
+      ctx.fillStyle = grad;
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 12;
+      ctx.fill();
+
+      // 4. Stries de détails sur les barbes de la plume
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 0.8;
+      for (let i = -30; i >= -80; i -= 9) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(-12, i - 6);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(12, i - 6);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
     function renderCanvasCalligraphy() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.font = '46px "Great Vibes", cursive, serif';
@@ -197,7 +325,7 @@
       let startY = 90;
       const lineHeight = 65;
 
-      // Dessiner les lignes terminées (centrées)
+      // Lignes déjà complétées
       for (let i = 0; i < currentLineIndex; i++) {
         const lineText = TEXT_TO_WRITE[i];
         if (!lineText) continue;
@@ -209,7 +337,7 @@
         ctx.fillText(lineText, canvas.width / 2, startY + (i * lineHeight));
       }
 
-      // Dessiner la ligne en cours d'écriture (synchro parfaite)
+      // Ligne en cours de tracé
       if (currentLineIndex < TEXT_TO_WRITE.length) {
         const lineText = TEXT_TO_WRITE[currentLineIndex];
         const yPos = startY + (currentLineIndex * lineHeight);
@@ -220,32 +348,16 @@
           const partialText = lineText.substring(0, currentCharIndex);
           const partialWidth = ctx.measureText(partialText).width;
 
-          // Alignement à gauche depuis le point de départ centré
           ctx.fillStyle = '#f5e6b3';
           ctx.shadowColor = '#d4af37';
           ctx.shadowBlur = 14;
           ctx.textAlign = 'left';
           ctx.fillText(partialText, startX, yPos);
 
-          // Synchronisation de la pointe lumineuse
+          // Afficher la plume sur la pointe active
           if (isWritingActive && currentCharIndex > 0 && currentCharIndex <= lineText.length) {
             const tipX = startX + partialWidth;
-
-            ctx.save();
-            // Point central hyper brillant
-            ctx.beginPath();
-            ctx.arc(tipX, yPos - 10, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = '#ffe066';
-            ctx.shadowBlur = 25;
-            ctx.fill();
-
-            // Halo étincelant autour de la pointe
-            ctx.beginPath();
-            ctx.arc(tipX, yPos - 10, 12, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(212, 175, 55, 0.25)';
-            ctx.fill();
-            ctx.restore();
+            drawQuillFeather(ctx, tipX, yPos - 8);
           }
         }
       }
@@ -259,11 +371,11 @@
       isWritingActive = true;
       clearInterval(animationTimer);
 
-      // Vitesse ralentie à 85ms par caractère
       animationTimer = setInterval(() => {
         if (currentLineIndex < TEXT_TO_WRITE.length) {
           if (currentCharIndex < TEXT_TO_WRITE[currentLineIndex].length) {
             currentCharIndex++;
+            playScratchSound(); // Son de gravure à chaque lettre
           } else {
             currentLineIndex++;
             currentCharIndex = 0;
@@ -272,63 +384,16 @@
         } else {
           isWritingActive = false;
           clearInterval(animationTimer);
-          renderCanvasCalligraphy(); // Retirer la pointe lumineuse à la fin
+          renderCanvasCalligraphy(); // Retirer la plume
+          playGongSound(); // Gong final !
         }
-      }, 85);
-    }
-
-    // 2. POUSSIÈRE D'OR 3D SEULEMENT
-    function createGoldDustEffect() {
-      const group = new THREE.Group();
-
-      // Texture de particule d'or luminescente
-      const pCanvas = document.createElement('canvas');
-      pCanvas.width = 32; pCanvas.height = 32;
-      const pCtx = pCanvas.getContext('2d');
-      const grad = pCtx.createRadialGradient(16,16,0, 16,16,16);
-      grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.3, '#ffd700');
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      pCtx.fillStyle = grad;
-      pCtx.fillRect(0,0,32,32);
-      const pTexture = new THREE.CanvasTexture(pCanvas);
-
-      // Poussière d'or flottante dans la pièce (120 particules)
-      const particleCount = 120;
-      const particleGeo = new THREE.BufferGeometry();
-      const positions = new Float32Array(particleCount * 3);
-      const velocities = [];
-
-      for(let i = 0; i < particleCount; i++) {
-        positions[i*3] = (Math.random() - 0.5) * 1.4;
-        positions[i*3 + 1] = (Math.random() - 0.5) * 0.8;
-        positions[i*3 + 2] = Math.random() * 0.4;
-        
-        velocities.push({
-          x: (Math.random() - 0.5) * 0.001,
-          y: Math.random() * 0.0015 + 0.0005,
-          z: Math.random() * 0.001 + 0.0005
-        });
-      }
-
-      particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const particleMat = new THREE.PointsMaterial({
-        size: 0.035,
-        map: pTexture,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        opacity: 0.85
-      });
-
-      const particles = new THREE.Points(particleGeo, particleMat);
-      group.add(particles);
-
-      return { group, particles, particleCount, velocities };
+      }, 90);
     }
 
     // 3. DÉMARRAGE AR
     async function startAR() {
+      initAudio(); // Activer l'audio sur le clic utilisateur
+
       startBtn.disabled = true;
       startBtn.style.opacity = '0.5';
       startBtn.textContent = 'CHARGEMENT...';
@@ -345,11 +410,7 @@
         const { renderer, scene, camera } = mindarThree;
 
         const anchor = mindarThree.addAnchor(0);
-        
-        // Ajouter le texte et l'effet de poussière d'or 3D
         anchor.group.add(textMesh);
-        const fx = createGoldDustEffect();
-        anchor.group.add(fx.group);
 
         anchor.onTargetFound = () => {
           statusTitle.textContent = "RÉVÉLATION EN COURS";
@@ -374,18 +435,7 @@
         statusTitle.textContent = "RECHERCHE DU SCEAU";
         statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
 
-        // Animation en boucle : Mouvement des Poussières d'or uniquement
         renderer.setAnimationLoop(() => {
-          const pos = fx.particles.geometry.attributes.position.array;
-          for(let i = 0; i < fx.particleCount; i++) {
-            pos[i*3 + 1] += fx.velocities[i].y;
-            pos[i*3 + 2] += fx.velocities[i].z;
-
-            if (pos[i*3 + 1] > 0.5) pos[i*3 + 1] = -0.5;
-            if (pos[i*3 + 2] > 0.5) pos[i*3 + 2] = 0;
-          }
-          fx.particles.geometry.attributes.position.needsUpdate = true;
-
           renderer.render(scene, camera);
         });
       } catch (err) {
