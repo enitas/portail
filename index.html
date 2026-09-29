@@ -1,0 +1,274 @@
+"Celui qui cherche la lumière doit observer ce qui est caché à l'œil nu..."
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Épreuve des Archontes - La Plume Céleste</title>
+  
+  <!-- Polices Calligraphiques Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      touch-action: none;
+    }
+    body {
+      overflow: hidden;
+      background-color: #050508;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    
+    #hud {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 420px;
+      padding: 14px 20px;
+      background: rgba(18, 14, 12, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(212, 175, 55, 0.5);
+      border-radius: 14px;
+      color: #e2d1c3;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      z-index: 100;
+      pointer-events: none;
+    }
+    #status-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #d4af37;
+      margin-bottom: 4px;
+    }
+    #status-desc {
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    #start-btn {
+      position: absolute;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 16px 36px;
+      background: linear-gradient(135deg, #d4af37 0%, #aa7c11 100%);
+      border: none;
+      border-radius: 30px;
+      color: #0d0f14;
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+      z-index: 100;
+      pointer-events: auto;
+    }
+    #start-btn:active {
+      transform: translateX(-50%) scale(0.96);
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="hud">
+    <div id="status-title">RECHERCHE DU SCEAU</div>
+    <div id="status-desc">Pointez la caméra vers le symbole sacré.</div>
+  </div>
+
+  <button id="start-btn">INSPECTER LE MUR</button>
+  <div id="container"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { MindARThree } from 'mindar-image-three';
+
+    const statusTitle = document.getElementById('status-title');
+    const statusDesc = document.getElementById('status-desc');
+    const startBtn = document.getElementById('start-btn');
+
+    // TEXTE À ÉCRIRE EN ÉCRITURE ATTACHÉE
+    const TEXT_TO_WRITE = [
+      "Nul ne franchira ce portail",
+      "Celui qui cherche la lumière doit observer ce qui est caché à l'œil nu...",
+      "",
+      "Regardez l'Orbe sous la lumiere :",
+      "le passage s'ouvrira avec le code sacre."
+    ];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const textTexture = new THREE.CanvasTexture(canvas);
+    
+    // Support 3D plaqué contre la pierre
+    const planeGeo = new THREE.PlaneGeometry(1.2, 0.6);
+    const planeMat = new THREE.MeshBasicMaterial({ 
+      map: textTexture, 
+      transparent: true, 
+      opacity: 0.95,
+      side: THREE.DoubleSide
+    });
+    const textMesh = new THREE.Mesh(planeGeo, planeMat);
+
+    let currentLineIndex = 0;
+    let currentCharIndex = 0;
+    let animationTimer = null;
+
+    function renderCanvasCalligraphy() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Style d'écriture à l'encre d'or luminescente
+      ctx.fillStyle = '#f5e6b3';
+      ctx.shadowColor = '#d4af37';
+      ctx.shadowBlur = 12;
+      ctx.font = '48px "Great Vibes", cursive';
+      ctx.textAlign = 'center';
+
+      let startY = 90;
+      const lineHeight = 65;
+
+      // 1. Dessiner les lignes déjà terminées
+      for (let i = 0; i < currentLineIndex; i++) {
+        ctx.fillText(TEXT_TO_WRITE[i], canvas.width / 2, startY + (i * lineHeight));
+      }
+
+      // 2. Dessiner la ligne en cours d'écriture
+      if (currentLineIndex < TEXT_TO_WRITE.length) {
+        const lineText = TEXT_TO_WRITE[currentLineIndex];
+        const partialText = lineText.substring(0, currentCharIndex);
+        const yPos = startY + (currentLineIndex * lineHeight);
+
+        ctx.fillText(partialText, canvas.width / 2, yPos);
+
+        // 3. Effet "Pointe de la plume" (Point lumineux qui dessine la lettre actuelle)
+        if (partialText.length > 0) {
+          const textMetrics = ctx.measureText(partialText);
+          const fullMetrics = ctx.measureText(lineText);
+          
+          // Calculer la position X de la pointe de la plume
+          const startX = (canvas.width - fullMetrics.width) / 2;
+          const tipX = startX + textMetrics.width;
+
+          // Dessiner le halo de la plume en train d'écrire
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(tipX, yPos - 12, 5, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = '#ffe066';
+          ctx.shadowBlur = 20;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      textTexture.needsUpdate = true;
+    }
+
+    function startWritingAnimation() {
+      currentLineIndex = 0;
+      currentCharIndex = 0;
+      clearInterval(animationTimer);
+
+      // Attendre que la police calligraphique soit bien chargée
+      document.fonts.ready.then(() => {
+        animationTimer = setInterval(() => {
+          if (currentLineIndex < TEXT_TO_WRITE.length) {
+            if (currentCharIndex < TEXT_TO_WRITE[currentLineIndex].length) {
+              currentCharIndex++;
+            } else {
+              currentLineIndex++;
+              currentCharIndex = 0;
+            }
+            renderCanvasCalligraphy();
+          } else {
+            clearInterval(animationTimer);
+            // Retirer la pointe de plume à la fin en nettoyant le dernier frame
+            renderCanvasCalligraphy();
+          }
+        }, 45); // Vitesse de la plume
+      });
+    }
+
+    // INITIALISATION MINDAR
+    const mindarThree = new MindARThree({
+      container: document.querySelector("#container"),
+      imageTargetSrc: "./targets.mind"
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+
+    const anchor = mindarThree.addAnchor(0);
+    anchor.group.add(textMesh);
+
+    anchor.onTargetFound = () => {
+      statusTitle.textContent = "RÉVÉLATION EN COURS";
+      statusTitle.style.color = "#d4af37";
+      statusDesc.textContent = "Une plume invisible trace un message...";
+      startWritingAnimation();
+    };
+
+    anchor.onTargetLost = () => {
+      statusTitle.textContent = "RECHERCHE DU SCEAU";
+      statusTitle.style.color = "#ffaa00";
+      statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
+      clearInterval(animationTimer);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      textTexture.needsUpdate = true;
+    };
+
+    // DÉMARRAGE
+    startBtn.addEventListener('click', async () => {
+      startBtn.style.display = 'none';
+      statusTitle.textContent = "ACTIVATION";
+      statusDesc.textContent = "Initialisation de la caméra...";
+
+      try {
+        await mindarThree.start();
+        statusTitle.textContent = "RECHERCHE DU SCEAU";
+        statusDesc.textContent = "Pointez la caméra vers le symbole sacré.";
+
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera);
+        });
+      } catch (err) {
+        statusTitle.textContent = "ERREUR";
+        statusTitle.style.color = "#ff4444";
+        statusDesc.textContent = err.message || "Accès caméra refusé.";
+      }
+    });
+  </script>
+</body>
+</html>
